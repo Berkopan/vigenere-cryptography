@@ -490,7 +490,7 @@ function refreshLanguageDependentUI() {
 function init() {
   applyStaticTranslations();
 
-  $('.lab-tab').forEach((tab) => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
+  $$('.lab-tab').forEach((tab) => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
   $$('[data-jump]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.jump, true)));
 
   $('#buildCipher').addEventListener('click', buildCipher);
