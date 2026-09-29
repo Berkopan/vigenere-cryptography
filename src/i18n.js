@@ -279,7 +279,7 @@ const staticBindings = [
   ['[data-panel="encrypt"] .micro-label', 'currentStep'],
   ['[data-panel="encrypt"] .speed-control', 'speed', (value, element) => `${value}${element.querySelector('input')?.outerHTML ?? ''}`],
   ['.alphabet-map .alphabet-label:first-child', 'plain'],
-  ['.alphabet-map .alphabet-label:nth-of-type(2)', 'shifted'],
+  ['.alphabet-map .alphabet-label:nth-child(3)', 'shifted'],
   ['.timeline-head span', 'letterTimeline'],
   ['#timelineWindow', 'timelineInitial'],
   ['[data-panel="attack"] .panel-heading .section-kicker', 'attackKicker'],
