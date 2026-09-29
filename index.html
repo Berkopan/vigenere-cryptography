@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="An interactive Vigenère cipher and Kasiski examination visualizer." />
+  <meta name="theme-color" content="#090b13" />
+  <title>CipherScope — Vigenère & Kasiski Lab</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="grid-noise"></div>
+
+  <header class="site-header shell">
+    <a class="brand" href="#top" aria-label="CipherScope home">
+      <span class="brand-mark" aria-hidden="true"><span>A</span><span>→</span><span>L</span></span>
+      <span class="brand-copy">
+        <strong>CipherScope</strong>
+        <small>classical cryptography lab</small>
+      </span>
+    </a>
+    <div class="header-actions">
+      <span class="status-dot"><i></i> runs entirely in your browser</span>
+      <a class="ghost-link" href="https://github.com/Berkopan/vigenere-cryptography" target="_blank" rel="noreferrer">GitHub ↗</a>
+    </div>
+  </header>
+
+  <main id="top" class="shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow"><span>01</span> INTERACTIVE ALGORITHM VISUALIZER</p>
+        <h1>See a cipher <em>move</em>,<br />then watch it <em>break</em>.</h1>
+        <p class="hero-lead">
+          Explore how the Vigenère cipher shifts every letter with a repeating key, then follow the exact clues a Kasiski examination uses to expose that repetition.
+        </p>
+        <div class="hero-actions">
+          <button class="primary-button" data-jump="encrypt">Open encryption lab <span>→</span></button>
+          <button class="secondary-button" data-jump="attack">Run Kasiski attack</button>
+        </div>
+      </div>
+
+      <div class="hero-visual" aria-label="Animated cipher preview">
+        <div class="visual-topline"><span>LIVE TRANSFORMATION</span><span>mod 26</span></div>
+        <div class="hero-formula">
+          <span class="formula-token plain-token">P</span>
+          <span class="formula-op">+</span>
+          <span class="formula-token key-token">K</span>
+          <span class="formula-op">≡</span>
+          <span class="formula-token cipher-token">C</span>
+        </div>
+        <div class="hero-letters" aria-hidden="true">
+          <div><span>A</span><span>T</span><span>T</span><span>A</span><span>C</span><span>K</span></div>
+          <div class="key-line"><span>L</span><span>E</span><span>M</span><span>O</span><span>N</span><span>L</span></div>
+          <div class="cipher-line"><span>L</span><span>X</span><span>F</span><span>O</span><span>P</span><span>V</span></div>
+        </div>
+        <div class="signal-line"><i></i></div>
+      </div>
+    </section>
+
+    <section class="lab-shell" id="lab">
+      <div class="lab-tabs" role="tablist" aria-label="Cryptography labs">
+        <button class="lab-tab is-active" data-tab="encrypt" role="tab" aria-selected="true">
+          <span class="tab-number">01</span>
+          <span><strong>Vigenère Lab</strong><small>Build the ciphertext</small></span>
+        </button>
+        <button class="lab-tab" data-tab="attack" role="tab" aria-selected="false">
+          <span class="tab-number">02</span>
+          <span><strong>Kasiski Attack</strong><small>Find the repeating key</small></span>
+        </button>
+      </div>
+
+      <div class="lab-panel is-active" data-panel="encrypt" role="tabpanel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">VIGENÈRE CIPHER</p>
+            <h2>Encrypt one letter at a time.</h2>
+            <p>Letters are mapped to 0–25. Each plaintext value is shifted by the matching key value: <code>Cᵢ = (Pᵢ + Kᵢ) mod 26</code>.</p>
+          </div>
+          <div class="concept-card">
+            <span class="concept-label">Core idea</span>
+            <strong>One message, many Caesar shifts.</strong>
+            <small>The key repeats across letters, so the active shift keeps changing.</small>
+          </div>
+        </div>
+
+        <div class="workspace-grid">
+          <aside class="control-card">
+            <label class="field-label" for="plaintext">Plaintext</label>
+            <textarea id="plaintext" rows="6" spellcheck="false">ATTACK AT DAWN. RETREAT AT DUSK.</textarea>
+
+            <div class="field-row">
+              <div>
+                <label class="field-label" for="key">Key</label>
+                <input id="key" value="LEMON" maxlength="24" autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="mini-field">
+                <span class="field-label">Alphabet</span>
+                <span class="read-only-pill">A–Z / 26</span>
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button id="buildCipher" class="primary-button full">Build cipher <span>→</span></button>
+              <button id="resetCipher" class="icon-button" title="Reset animation" aria-label="Reset animation">↺</button>
+            </div>
+
+            <div class="output-box">
+              <span class="field-label">Ciphertext</span>
+              <output id="cipherOutput"></output>
+              <button id="sendToAttack" class="text-button">Send this ciphertext to Kasiski lab <span>→</span></button>
+            </div>
+          </aside>
+
+          <div class="visualizer-card">
+            <div class="visualizer-toolbar">
+              <div>
+                <span class="micro-label">CURRENT STEP</span>
+                <strong id="stepCounter">0 / 0</strong>
+              </div>
+              <div class="playback-controls">
+                <button id="prevStep" class="round-button" aria-label="Previous step">←</button>
+                <button id="playCipher" class="round-button round-button-primary" aria-label="Play encryption">▶</button>
+                <button id="nextStep" class="round-button" aria-label="Next step">→</button>
+              </div>
+              <label class="speed-control">Speed
+                <input id="cipherSpeed" type="range" min="180" max="1200" value="620" step="20" />
+              </label>
+            </div>
+
+            <div class="step-stage">
+              <div class="step-copy" id="stepCopy">
+                <span class="step-badge">READY</span>
+                <h3>Press play or step forward.</h3>
+                <p>The active plaintext letter, key letter, numeric shift and output will light up together.</p>
+              </div>
+              <div class="formula-card" id="formulaCard">
+                <span>—</span><b>+</b><span>—</span><b>mod 26</b><strong>= —</strong>
+              </div>
+            </div>
+
+            <div class="alphabet-map">
+              <div class="alphabet-label">PLAIN</div>
+              <div class="alphabet-row" id="plainAlphabet"></div>
+              <div class="alphabet-label">SHIFTED</div>
+              <div class="alphabet-row shifted" id="shiftedAlphabet"></div>
+            </div>
+
+            <div class="timeline-wrap">
+              <div class="timeline-head">
+                <span>Letter timeline</span>
+                <small id="timelineWindow">showing first symbols</small>
+              </div>
+              <div class="timeline-grid" id="timelineGrid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lab-panel" data-panel="attack" role="tabpanel" hidden>
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">KASISKI EXAMINATION + FREQUENCY ANALYSIS</p>
+            <h2>Turn repetition into a key.</h2>
+            <p>Kasiski reveals likely <em>key lengths</em>, not the key itself. Once the period is known, each key position becomes a Caesar cipher that can be attacked statistically.</p>
+          </div>
+          <div class="concept-card warning-card">
+            <span class="concept-label">Important distinction</span>
+            <strong>Kasiski narrows the search space.</strong>
+            <small>This lab follows it with per-column frequency analysis to recover the actual key.</small>
+          </div>
+        </div>
+
+        <div class="attack-layout">
+          <aside class="control-card attack-input-card">
+            <div class="demo-row">
+              <div>
+                <span class="field-label">Ciphertext</span>
+                <small>Use your own text or load the prepared demo.</small>
+              </div>
+              <button id="loadDemo" class="chip-button">Load demo</button>
+            </div>
+            <textarea id="attackCiphertext" rows="10" spellcheck="false"></textarea>
+
+            <div class="field-row compact-row">
+              <div>
+                <label class="field-label" for="maxKeyLength">Search key lengths</label>
+                <select id="maxKeyLength">
+                  <option value="12">2–12</option>
+                  <option value="16" selected>2–16</option>
+                  <option value="20">2–20</option>
+                </select>
+              </div>
+              <div class="signal-stat">
+                <span>Letters</span>
+                <strong id="attackLetterCount">0</strong>
+              </div>
+            </div>
+
+            <button id="analyzeAttack" class="primary-button full">Analyze ciphertext <span>→</span></button>
+            <div id="attackNotice" class="notice-box" hidden></div>
+          </aside>
+
+          <div class="attack-stage-card">
+            <div class="attack-progress" id="attackProgress"></div>
+
+            <div class="visualizer-toolbar attack-toolbar">
+              <div>
+                <span class="micro-label">ATTACK PHASE</span>
+                <strong id="attackPhaseLabel">Ready</strong>
+              </div>
+              <div class="playback-controls">
+                <button id="prevAttack" class="round-button" aria-label="Previous attack phase">←</button>
+                <button id="playAttack" class="round-button round-button-primary" aria-label="Play attack">▶</button>
+                <button id="nextAttack" class="round-button" aria-label="Next attack phase">→</button>
+              </div>
+              <label class="speed-control">Speed
+                <input id="attackSpeed" type="range" min="500" max="2200" value="1300" step="50" />
+              </label>
+            </div>
+
+            <div id="attackStage" class="attack-stage"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="explain-grid">
+      <article>
+        <span class="article-number">A</span>
+        <h3>Why repetition leaks</h3>
+        <p>If the same plaintext fragment lands under the same section of a repeating key, it receives the same sequence of shifts and produces the same ciphertext fragment.</p>
+      </article>
+      <article>
+        <span class="article-number">B</span>
+        <h3>Why distances matter</h3>
+        <p>The distance between matching ciphertext fragments is often a multiple of the key length. Factoring several distances makes that hidden period visible.</p>
+      </article>
+      <article>
+        <span class="article-number">C</span>
+        <h3>Why the key can follow</h3>
+        <p>Split the text by that period and every column uses one fixed Caesar shift. English letter frequencies can then expose each shift independently.</p>
+      </article>
+    </section>
+  </main>
+
+  <footer class="shell site-footer">
+    <div>
+      <strong>CipherScope</strong>
+      <span>Built as a visual cryptography lab.</span>
+    </div>
+    <span>Educational use · Classical ciphers are not secure for modern data.</span>
+  </footer>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
