@@ -6,6 +6,13 @@ import {
   inferKeyByFrequency,
   normalizeLetters,
 } from './crypto.js';
+import {
+  applyStaticTranslations,
+  getAttackPhases,
+  getLanguage,
+  setLanguage,
+  t,
+} from './i18n.js';
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -21,14 +28,6 @@ Repeated patterns reveal the secret key length in a cipher.
 Once a plausible period is known, the ciphertext can be split into columns. Each column was encrypted with only one Caesar shift, so ordinary frequency analysis becomes useful again. The lab compares every possible shift against typical English frequencies, chooses the best fit for each column, reconstructs a candidate key, and finally decrypts the message. This is why a long repeating key is stronger than a short one, and why modern cryptography avoids this design entirely.`;
 const ATTACK_DEMO_KEY = 'ORCHARD';
 const ATTACK_DEMO_CIPHERTEXT = encryptVigenere(ATTACK_DEMO_PLAINTEXT, ATTACK_DEMO_KEY).output;
-
-const attackPhases = [
-  { short: 'Repeats', label: 'Find repeated n-grams' },
-  { short: 'Distances', label: 'Measure distances' },
-  { short: 'Factors', label: 'Factor the distances' },
-  { short: 'Columns', label: 'Solve Caesar columns' },
-  { short: 'Decrypt', label: 'Rebuild the plaintext' },
-];
 
 const state = {
   cipher: {
@@ -78,7 +77,7 @@ function stopCipherPlayback() {
   clearTimeout(state.cipher.timer);
   state.cipher.timer = null;
   $('#playCipher').textContent = '▶';
-  $('#playCipher').setAttribute('aria-label', 'Play encryption');
+  $('#playCipher').setAttribute('aria-label', t('playEncryption'));
 }
 
 function scheduleCipherStep() {
@@ -105,7 +104,7 @@ function toggleCipherPlayback() {
   if (state.cipher.index >= state.cipher.result.details.length - 1) state.cipher.index = -1;
   state.cipher.playing = true;
   $('#playCipher').textContent = 'Ⅱ';
-  $('#playCipher').setAttribute('aria-label', 'Pause encryption');
+  $('#playCipher').setAttribute('aria-label', t('pauseEncryption'));
   if (state.cipher.index < 0) {
     state.cipher.index = 0;
     renderCipherVisualizer();
@@ -119,7 +118,7 @@ function buildCipher() {
   const cleanKey = normalizeLetters(key);
   if (!cleanKey) {
     $('#key').focus();
-    $('#key').setCustomValidity('Use at least one A–Z letter.');
+    $('#key').setCustomValidity(t('keyValidation'));
     $('#key').reportValidity();
     return;
   }
@@ -148,11 +147,12 @@ function renderTimeline() {
   const maxStart = Math.max(0, details.length - windowSize);
   const start = clamp(active < 0 ? 0 : active - 8, 0, maxStart);
   const visible = details.slice(start, start + windowSize);
+  const [plainLabel, keyLabel, shiftLabel, cipherLabel] = t('timelineLabels');
   const rows = [
-    ['PLAIN', 'plain', (item) => item.inputChar],
-    ['KEY', 'key', (item) => item.keyChar],
-    ['SHIFT', 'shift', (item) => item.keyValue],
-    ['CIPHER', 'cipher', (item) => item.outputChar],
+    [plainLabel, 'plain', (item) => item.inputChar],
+    [keyLabel, 'key', (item) => item.keyChar],
+    [shiftLabel, 'shift', (item) => item.keyValue],
+    [cipherLabel, 'cipher', (item) => item.outputChar],
   ];
 
   $('#timelineGrid').innerHTML = rows.map(([label, className, value]) => `
@@ -170,8 +170,8 @@ function renderTimeline() {
   `).join('');
 
   $('#timelineWindow').textContent = visible.length
-    ? `letters ${start + 1}–${start + visible.length} of ${details.length}`
-    : 'no letters yet';
+    ? t('timelineWindow', { start: start + 1, end: start + visible.length, total: details.length })
+    : t('noLetters');
 }
 
 function renderCipherVisualizer() {
@@ -182,16 +182,16 @@ function renderCipherVisualizer() {
 
   if (!active) {
     $('#stepCopy').innerHTML = `
-      <span class="step-badge">READY</span>
-      <h3>Press play or step forward.</h3>
-      <p>The active plaintext letter, key letter, numeric shift and output will light up together.</p>
+      <span class="step-badge">${t('ready')}</span>
+      <h3>${t('pressPlay')}</h3>
+      <p>${t('pressPlayBody')}</p>
     `;
     $('#formulaCard').innerHTML = '<span>—</span><b>+</b><span>—</span><b>mod 26</b><strong>= —</strong>';
   } else {
     $('#stepCopy').innerHTML = `
-      <span class="step-badge">LETTER ${active.letterIndex + 1}</span>
-      <h3>${active.inputChar} shifts by ${active.keyValue} because the key letter is ${active.keyChar}.</h3>
-      <p>${active.inputChar} maps to ${active.inputValue}; ${active.keyChar} maps to ${active.keyValue}. Wrap around the alphabet with modulo 26 to get ${active.outputChar}.</p>
+      <span class="step-badge">${t('letter')} ${active.letterIndex + 1}</span>
+      <h3>${t('shiftsBy', { input: active.inputChar, shift: active.keyValue, key: active.keyChar })}</h3>
+      <p>${t('mapping', { input: active.inputChar, inputValue: active.inputValue, key: active.keyChar, keyValue: active.keyValue, output: active.outputChar })}</p>
     `;
     $('#formulaCard').innerHTML = `
       <span>${active.inputValue}</span><b>+</b><span>${active.keyValue}</span><b>mod 26</b><strong>= ${active.outputValue} · ${active.outputChar}</strong>
@@ -231,12 +231,12 @@ function stopAttackPlayback() {
   clearTimeout(state.attack.timer);
   state.attack.timer = null;
   $('#playAttack').textContent = '▶';
-  $('#playAttack').setAttribute('aria-label', 'Play attack');
+  $('#playAttack').setAttribute('aria-label', t('playAttack'));
 }
 
 function scheduleAttackPhase() {
   if (!state.attack.playing) return;
-  if (state.attack.phase >= attackPhases.length - 1) {
+  if (state.attack.phase >= getAttackPhases().length - 1) {
     stopAttackPlayback();
     return;
   }
@@ -253,10 +253,10 @@ function toggleAttackPlayback() {
     stopAttackPlayback();
     return;
   }
-  if (state.attack.phase >= attackPhases.length - 1) state.attack.phase = 0;
+  if (state.attack.phase >= getAttackPhases().length - 1) state.attack.phase = 0;
   state.attack.playing = true;
   $('#playAttack').textContent = 'Ⅱ';
-  $('#playAttack').setAttribute('aria-label', 'Pause attack');
+  $('#playAttack').setAttribute('aria-label', t('pauseAttack'));
   renderAttack();
   scheduleAttackPhase();
 }
@@ -264,7 +264,7 @@ function toggleAttackPlayback() {
 function stepAttack(direction) {
   if (!state.attack.analysis) return;
   stopAttackPlayback();
-  state.attack.phase = clamp(state.attack.phase + direction, 0, attackPhases.length - 1);
+  state.attack.phase = clamp(state.attack.phase + direction, 0, getAttackPhases().length - 1);
   renderAttack();
 }
 
@@ -277,7 +277,7 @@ function analyzeAttack() {
 
   if (clean.length < 40) {
     notice.hidden = false;
-    notice.textContent = 'Kasiski needs repeated patterns, so very short ciphertexts often provide weak or no evidence. Try a longer message or load the demo.';
+    notice.textContent = t('shortCipherWarning');
   } else {
     notice.hidden = true;
   }
@@ -289,7 +289,7 @@ function analyzeAttack() {
 
   if (!initial.repeats.length || !initial.selectedLength) {
     notice.hidden = false;
-    notice.textContent = 'No useful repeated 3–5 letter sequences were found. Kasiski cannot estimate a key period from this ciphertext alone.';
+    notice.textContent = t('noRepeatsWarning');
   }
 
   renderAttack();
@@ -306,6 +306,7 @@ function getSelectedAttackData() {
 }
 
 function renderAttackProgress() {
+  const attackPhases = getAttackPhases();
   $('#attackProgress').innerHTML = attackPhases.map((phase, index) => {
     const classes = [
       'progress-step',
@@ -358,12 +359,12 @@ function renderRepeatPhase(data) {
   const limit = Math.min(text.length, 900);
   const stream = [...text.slice(0, limit)].map((char, index) => `<span class="cipher-char ${marks.get(index) ?? ''}">${char}</span>`).join('');
   return `
-    ${phaseHeader(0, 'PHASE ONE · PATTERN SCAN', 'Look for repeated ciphertext fragments.', 'Kasiski starts with repeated groups of characters. Longer repeats are less likely to appear by accident, so 3–5 letter n-grams are useful evidence.')}
+    ${phaseHeader(0, t('phase1Eyebrow'), t('phase1Title'), t('phase1Body'))}
     <div class="cipher-stream">${stream}${text.length > limit ? '<span class="cipher-char">…</span>' : ''}</div>
     <div class="evidence-grid">
-      <div class="evidence-card"><span>Repeated n-grams</span><strong>${data.repeats.length}</strong></div>
-      <div class="evidence-card"><span>Highlighted example</span><strong>${escapeHTML(repeat?.gram ?? '—')}</strong></div>
-      <div class="evidence-card"><span>Occurrences</span><strong>${repeat?.positions.length ?? 0}</strong></div>
+      <div class="evidence-card"><span>${t('repeatedNgrams')}</span><strong>${data.repeats.length}</strong></div>
+      <div class="evidence-card"><span>${t('highlightedExample')}</span><strong>${escapeHTML(repeat?.gram ?? '—')}</strong></div>
+      <div class="evidence-card"><span>${t('occurrences')}</span><strong>${repeat?.positions.length ?? 0}</strong></div>
     </div>
   `;
 }
@@ -371,15 +372,15 @@ function renderRepeatPhase(data) {
 function renderDistancePhase(data) {
   const repeats = data.repeats.slice(0, 10);
   return `
-    ${phaseHeader(1, 'PHASE TWO · DISTANCES', 'Measure the gaps between repeats.', 'If two identical plaintext fragments were encrypted under the same key alignment, the distance between them is often a multiple of the key length.')}
+    ${phaseHeader(1, t('phase2Eyebrow'), t('phase2Title'), t('phase2Body'))}
     <div class="repeat-list">
       ${repeats.map((repeat) => `
         <div class="repeat-item">
           <span class="gram">${escapeHTML(repeat.gram)}</span>
-          <span class="positions">positions ${repeat.positions.slice(0, 5).join(', ')}${repeat.positions.length > 5 ? '…' : ''}</span>
+          <span class="positions">${t('positions')} ${repeat.positions.slice(0, 5).join(', ')}${repeat.positions.length > 5 ? '…' : ''}</span>
           <span class="distance-badges">${repeat.distances.slice(0, 5).map((distance) => `<span>Δ ${distance}</span>`).join('')}</span>
         </div>
-      `).join('') || '<div class="empty-state"><div class="empty-state-inner"><h3>No repeat distances found</h3><p>Use a longer ciphertext to give Kasiski more evidence.</p></div></div>'}
+      `).join('') || `<div class="empty-state"><div class="empty-state-inner"><h3>${t('noDistancesTitle')}</h3><p>${t('noDistancesBody')}</p></div></div>`}
     </div>
   `;
 }
@@ -388,7 +389,7 @@ function renderFactorPhase(data) {
   const candidates = data.candidates.slice(0, 10);
   const maxScore = candidates[0]?.score || 1;
   return `
-    ${phaseHeader(2, 'PHASE THREE · FACTORIZATION', 'Count which factors keep appearing.', 'Each repeat distance is factored. A factor that explains many distances is a strong candidate for the repeating key period. Click another bar to test it.')}
+    ${phaseHeader(2, t('phase3Eyebrow'), t('phase3Title'), t('phase3Body'))}
     <div class="factor-layout">
       <div class="factor-chart">
         ${candidates.map((candidate) => `
@@ -397,12 +398,12 @@ function renderFactorPhase(data) {
             <div class="factor-track"><div class="factor-fill" style="width:${Math.max(3, candidate.score / maxScore * 100)}%"></div></div>
             <span class="factor-score">${candidate.score}</span>
           </div>
-        `).join('') || '<p>No factor evidence available.</p>'}
+        `).join('') || `<p>${t('noFactorEvidence')}</p>`}
       </div>
       <aside class="candidate-card">
-        <span>Selected period</span>
+        <span>${t('selectedPeriod')}</span>
         <strong>${data.selectedLength || '—'}</strong>
-        <p>${data.selectedLength ? `This factor explains the strongest set of repeat distances. Average column IC: ${(data.candidates.find((candidate) => candidate.factor === data.selectedLength)?.ic ?? 0).toFixed(3)}.` : 'Kasiski needs repeated fragments before it can suggest a key length.'}</p>
+        <p>${data.selectedLength ? t('selectedPeriodBody', { ic: (data.candidates.find((candidate) => candidate.factor === data.selectedLength)?.ic ?? 0).toFixed(3) }) : t('selectedPeriodEmpty')}</p>
       </aside>
     </div>
   `;
@@ -411,32 +412,32 @@ function renderFactorPhase(data) {
 function renderColumnPhase(data) {
   const columns = data.frequency.columns;
   return `
-    ${phaseHeader(3, 'PHASE FOUR · COLUMN ATTACK', 'Turn the period into Caesar ciphers.', `With period ${data.selectedLength || '—'}, every ${data.selectedLength || 'n'}th ciphertext letter was shifted by the same key letter. We compare 26 possible shifts against English letter frequencies.`)}
+    ${phaseHeader(3, t('phase4Eyebrow'), t('phase4Title'), t('phase4Body', { period: data.selectedLength || '—' }))}
     <div class="column-grid">
       ${columns.map((column) => {
         const ratio = column.runnerUp?.chiSquared ? clamp(column.runnerUp.chiSquared / column.best.chiSquared, 1, 4) : 1;
         const confidence = clamp((ratio - 1) / 3, 0.12, 1) * 100;
         return `
           <article class="column-card">
-            <header><span>Column ${column.columnIndex + 1}</span><strong>${column.best.keyChar}</strong></header>
+            <header><span>${t('column')} ${column.columnIndex + 1}</span><strong>${column.best.keyChar}</strong></header>
             <div class="column-sample">${escapeHTML(column.columnText.slice(0, 44))}${column.columnText.length > 44 ? '…' : ''}</div>
-            <div class="column-confidence" title="Separation from the runner-up shift"><i style="width:${confidence}%"></i></div>
+            <div class="column-confidence" title="${t('confidenceTitle')}"><i style="width:${confidence}%"></i></div>
           </article>
         `;
-      }).join('') || '<p>No columns to analyze.</p>'}
+      }).join('') || `<p>${t('noColumns')}</p>`}
     </div>
-    <div class="key-reveal"><span>Recovered key candidate</span><strong>${escapeHTML(data.frequency.key || '—')}</strong></div>
+    <div class="key-reveal"><span>${t('recoveredKeyCandidate')}</span><strong>${escapeHTML(data.frequency.key || '—')}</strong></div>
   `;
 }
 
 function renderDecryptPhase(data) {
   return `
-    ${phaseHeader(4, 'PHASE FIVE · DECRYPTION', 'Use the recovered shifts in reverse.', 'Subtract the recovered key values instead of adding them. If the period and per-column shifts are correct, readable plaintext reappears.')}
-    <div class="plaintext-reveal">${escapeHTML(data.plaintext || 'No plaintext candidate could be produced.')}</div>
+    ${phaseHeader(4, t('phase5Eyebrow'), t('phase5Title'), t('phase5Body'))}
+    <div class="plaintext-reveal">${escapeHTML(data.plaintext || t('noPlaintext'))}</div>
     <div class="result-strip">
-      <div class="result-stat"><span>Key length</span><strong>${data.selectedLength || '—'}</strong></div>
-      <div class="result-stat"><span>Recovered key</span><strong>${escapeHTML(data.frequency.key || '—')}</strong></div>
-      <div class="result-stat"><span>Result type</span><strong>${data.frequency.key ? 'statistical candidate' : 'unavailable'}</strong></div>
+      <div class="result-stat"><span>${t('keyLength')}</span><strong>${data.selectedLength || '—'}</strong></div>
+      <div class="result-stat"><span>${t('recoveredKey')}</span><strong>${escapeHTML(data.frequency.key || '—')}</strong></div>
+      <div class="result-stat"><span>${t('resultType')}</span><strong>${data.frequency.key ? t('statisticalCandidate') : t('unavailable')}</strong></div>
     </div>
   `;
 }
@@ -444,14 +445,15 @@ function renderDecryptPhase(data) {
 function renderAttack() {
   renderAttackProgress();
   const stage = $('#attackStage');
-  $('#attackPhaseLabel').textContent = state.attack.analysis ? attackPhases[state.attack.phase].label : 'Ready';
+  const attackPhases = getAttackPhases();
+  $('#attackPhaseLabel').textContent = state.attack.analysis ? attackPhases[state.attack.phase].label : t('readyLabel');
 
   if (!state.attack.analysis) {
     stage.innerHTML = `
       <div class="empty-state"><div class="empty-state-inner">
         <div class="empty-icon">K</div>
-        <h3>Load a ciphertext to begin.</h3>
-        <p>The prepared demo is intentionally long enough to make repeated patterns, distance factors and frequency analysis visible.</p>
+        <h3>${t('emptyAttackTitle')}</h3>
+        <p>${t('emptyAttackBody')}</p>
       </div></div>
     `;
     return;
@@ -478,8 +480,17 @@ function sendCipherToAttack() {
   analyzeAttack();
 }
 
+function refreshLanguageDependentUI() {
+  renderCipherVisualizer();
+  renderAttack();
+  $('#playCipher').setAttribute('aria-label', state.cipher.playing ? t('pauseEncryption') : t('playEncryption'));
+  $('#playAttack').setAttribute('aria-label', state.attack.playing ? t('pauseAttack') : t('playAttack'));
+}
+
 function init() {
-  $$('.lab-tab').forEach((tab) => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
+  applyStaticTranslations();
+
+  $('.lab-tab').forEach((tab) => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
   $$('[data-jump]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.jump, true)));
 
   $('#buildCipher').addEventListener('click', buildCipher);
@@ -496,6 +507,10 @@ function init() {
   $('#prevAttack').addEventListener('click', () => stepAttack(-1));
   $('#nextAttack').addEventListener('click', () => stepAttack(1));
   $('#attackCiphertext').addEventListener('input', updateAttackLetterCount);
+  $('#languageToggle').addEventListener('click', () => {
+    setLanguage(getLanguage() === 'en' ? 'tr' : 'en');
+    refreshLanguageDependentUI();
+  });
 
   buildCipher();
   loadAttackDemo(false);
